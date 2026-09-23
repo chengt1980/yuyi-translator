@@ -68,6 +68,30 @@
     return map[code] || code;
   }
 
+  // 本地启发式语言检测：中英文（含日文假名/韩文）判定，足够技术文档与邮件场景
+  function detectLang(text) {
+    const t = text || '';
+    const cjk = (t.match(/[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/g) || []).length;
+    const latin = (t.match(/[A-Za-z]/g) || []).length;
+    if (cjk > 0 && cjk >= latin) return 'zh';
+    if (latin > 0 && latin > cjk) return 'en';
+    return null;
+  }
+
+  // 解析翻译方向：源=自动时，目标语言反向自适应
+  let toAutoLocked = false; // 自动模式下用户是否手动指定过目标语言
+  function resolveDirection(text) {
+    const f = fromLang.value;
+    if (f === 'auto') {
+      const d = detectLang(text);
+      if (d && !toAutoLocked) {
+        return { from: d, to: d === 'zh' ? 'en' : 'zh', auto: true, detected: d };
+      }
+      return { from: 'auto', to: toLang.value, auto: true, detected: d };
+    }
+    return { from: f, to: toLang.value, auto: false, detected: null };
+  }
+
   // 句子分隔符
   const DELIMS = /[。！？；!?;\n]/;
 
@@ -334,9 +358,16 @@
       clearLive();
       return;
     }
-    const from = fromLang.value;
-    const to = toLang.value;
     const { complete, partial } = segmentize(text);
+    const dir = resolveDirection(text);
+    const fromF = dir.from;
+    const toF = dir.to;
+    if (dir.auto && dir.detected) {
+      toLang.value = toF;
+      detectedLang.textContent = `自动检测：${langName(dir.detected)} → ${langName(toF)}`;
+    } else if (dir.auto) {
+      detectedLang.textContent = '正在检测语言…';
+    }
 
     // 提交新出现的完整句（顺序翻译，按产生顺序追加）
     if (doneCount < complete.length) {
@@ -346,8 +377,8 @@
         const segText = seg.trim();
         enqueue({
           q: segText,
-          from,
-          to,
+          from: fromF,
+          to: toF,
           onResult: function (dst) {
             if (v !== streamVersion) return;
             lines.push(dst);
@@ -369,8 +400,8 @@
       renderOutput();
       enqueue({
         q: partial,
-        from,
-        to,
+        from: fromF,
+        to: toF,
         skipCheck: () => liveQ !== partial,
         onResult: (dst) => {
           if (v !== streamVersion) return;
@@ -437,11 +468,16 @@
     }
     setLoading(true);
     showMessage('');
-    const from = fromLang.value;
-    const to = toLang.value;
+    const dir = resolveDirection(q);
+    const from = dir.from;
+    const to = dir.to;
+    if (dir.auto && dir.detected) {
+      toLang.value = to;
+      detectedLang.textContent = `自动检测：${langName(dir.detected)} → ${langName(to)}`;
+    }
     try {
       const data = await requestBaidu(q, from, to);
-      const dst = (data.result || []).join('\n');
+      const dst = (data.trans_result || []).map((r) => r.dst).join('\n');
       resetStream();
       lines = dst ? [dst] : [];
       renderOutput();
@@ -494,6 +530,7 @@
     showMessage('');
     fromLang.value = 'auto';
     toLang.value = 'zh';
+    toAutoLocked = false;
     autoToggle.checked = true;
     swapBtn.disabled = true;
     updateCount();
@@ -530,6 +567,7 @@
       copyBtn.disabled = true;
     }
     resetStream();
+    toAutoLocked = false;
     detectedLang.textContent = '';
     showMessage('');
     updateCount();
@@ -537,6 +575,14 @@
   });
 
   fromLang.addEventListener('change', () => {
+    toAutoLocked = false; // 切换源语言后重新允许自动指向目标
+    detectedLang.textContent = '';
+    if (autoToggle.checked) scheduleStream();
+  });
+
+  // 自动模式下用户手动改目标语言：锁定，不再被自适应覆盖
+  toLang.addEventListener('change', () => {
+    if (fromLang.value === 'auto') toAutoLocked = true;
     detectedLang.textContent = '';
   });
 
