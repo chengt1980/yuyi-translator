@@ -1,0 +1,14 @@
+# 依赖目录
+node_modules/
+
+# 环境变量（含密钥，务必忽略）
+.env
+.env.local
+.env.*.local
+
+# 系统文件
+.DS_Store
+*.log
+
+# Vercel 本地目录
+.vercel/

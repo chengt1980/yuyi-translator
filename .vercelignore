@@ -1,0 +1,5 @@
+.trae
+.trae-html-share-packages
+.env
+.env.local
+node_modules

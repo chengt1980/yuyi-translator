@@ -1,0 +1,11 @@
+{
+  "name": "yuyi-translator",
+  "version": "1.0.0",
+  "description": "个人在线中英互译工具，基于百度翻译 API + Vercel",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

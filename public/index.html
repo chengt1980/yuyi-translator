@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>译文 · lingua｜个人翻译工作台</title>
+    <meta name="description" content="面向运维者的中英互译工作台，基于百度翻译 API" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <!-- 提前设置主题，避免切换闪烁 -->
+    <script>
+      (function () {
+        var t = 'dark';
+        try {
+          t = localStorage.getItem('theme') || 'dark';
+        } catch (e) {}
+        document.documentElement.setAttribute('data-theme', t);
+      })();
+    </script>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <!-- 环境光晕背景 -->
+    <div class="ambient" aria-hidden="true">
+      <span class="orb orb-a"></span>
+      <span class="orb orb-b"></span>
+      <span class="orb orb-c"></span>
+      <span class="noise"></span>
+      <span class="grid"></span>
+    </div>
+
+    <header class="topbar reveal">
+      <div class="brand">
+        <span class="logo">译</span>
+        <div class="brand-text">
+          <h1>译文<span class="dot">.</span>lingua</h1>
+          <p class="mono">个人翻译工作台 · powered by 百度翻译</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="status-chip mono"><i></i> API ready</span>
+        <button id="themeToggle" class="icon-btn" type="button" aria-label="切换主题" title="切换深浅色主题">
+          <span class="theme-icon" aria-hidden="true"></span>
+        </button>
+      </div>
+    </header>
+
+    <main class="container">
+      <!-- 语言设置栏 -->
+      <section class="language-bar reveal delay-1">
+        <div class="lang-field">
+          <span class="lang-label mono">源语言 SOURCE</span>
+          <div class="select-wrap">
+            <select id="fromLang" class="lang-select">
+              <option value="auto">自动检测</option>
+              <option value="zh">中文</option>
+              <option value="en">英文</option>
+            </select>
+            <span class="select-caret"></span>
+          </div>
+        </div>
+
+        <button id="swapBtn" class="swap-btn" type="button" title="互换语言" aria-label="互换语言">
+          <span class="swap-arrows">⇄</span>
+        </button>
+
+        <div class="lang-field">
+          <span class="lang-label mono">目标语言 TARGET</span>
+          <div class="select-wrap">
+            <select id="toLang" class="lang-select">
+              <option value="zh" selected>中文</option>
+              <option value="en">英文</option>
+            </select>
+            <span class="select-caret"></span>
+          </div>
+        </div>
+
+        <label class="auto-switch">
+          <input id="autoTranslate" type="checkbox" checked />
+          <span class="switch-track"><i></i></span>
+          <span class="auto-text mono">自动翻译</span>
+        </label>
+      </section>
+
+      <!-- 翻译工作区 -->
+      <section class="workspace reveal delay-2">
+        <div class="pane pane-src">
+          <div class="pane-head">
+            <span class="pane-title mono"><i class="c-dot"></i>原文 INPUT</span>
+            <button id="clearBtn" class="text-btn" type="button">清空</button>
+          </div>
+          <textarea
+            id="inputText"
+            class="pane-textarea"
+            placeholder="粘贴想翻译的技术文档、命令或邮件…"
+            spellcheck="false"
+          ></textarea>
+          <div class="pane-foot">
+            <span id="charCount" class="count mono">0 字符</span>
+          </div>
+        </div>
+
+        <div class="pane-divider" aria-hidden="true">
+          <span>⟶</span>
+        </div>
+
+        <div class="pane pane-dst">
+          <div class="pane-head">
+            <span class="pane-title mono"><i class="c-dot accent"></i>译文 OUTPUT</span>
+            <button id="copyBtn" class="text-btn" type="button" disabled>复制译文</button>
+          </div>
+          <div id="outputText" class="pane-output" tabindex="0">
+            <span class="placeholder">翻译结果会在这里呈现…</span>
+          </div>
+          <div class="pane-foot">
+            <span id="detectedLang" class="count mono"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 操作栏 -->
+      <section class="action-bar reveal delay-3">
+        <button id="translateBtn" class="primary-btn" type="button">
+          <span class="btn-label">翻 译</span>
+          <span class="btn-loading mono" hidden>···</span>
+        </button>
+        <button id="resetBtn" class="secondary-btn" type="button" title="重置全部">重置</button>
+        <div class="stick">
+          <span class="kbd mono">⌘</span><span class="kbd mono">↵</span>
+          <span class="hint mono">快速翻译</span>
+        </div>
+        <div id="messageBox" class="message" role="status"></div>
+      </section>
+
+      <!-- 历史记录 -->
+      <section class="history reveal delay-4">
+        <div class="history-head">
+          <button id="historyToggle" class="history-toggle" type="button" aria-expanded="false">
+            <span class="history-caret" aria-hidden="true">▸</span>
+            <span class="mono">历史记录</span>
+            <span id="historyCount" class="history-count mono"></span>
+          </button>
+          <button id="historyClear" class="text-btn" type="button">清空历史</button>
+        </div>
+        <ul id="historyList" class="history-list" hidden></ul>
+      </section>
+    </main>
+
+    <footer class="footer mono reveal delay-5">
+      <span>语言自动检测 百度翻译</span>
+      <span class="sep">·</span>
+      <span>历史仅存于本地浏览器</span>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
