@@ -12,3 +12,8 @@ node_modules/
 
 # Vercel 本地目录
 .vercel/
+.vercel
+
+# IDE / 工作目录
+.trae
+.trae-html-share-packages
