@@ -91,6 +91,8 @@
   let liveTyped = ''; // 已请求的片段原文
   let doneCount = 0; // 已提交的完整句数
   let streamVersion = 0; // 版本号，用于作废清空/互换/手动翻译后早到的旧结果
+  let liveQ = null; // 当前最新的「末尾未完成片段」原文
+  let liveToken = 0; // 递增令牌，用于作废更早的实时片段请求
 
   // ---------- 历史记录 ----------
   function getHistory() {
@@ -296,6 +298,8 @@
     pumping = true;
     while (queue.length) {
       const task = queue.shift();
+      // 丢弃已过期的「实时末尾片段」请求：只翻译最新内容，避免旧片段排队堵住结果
+      if (task.skipCheck && task.skipCheck()) continue;
       const since = Date.now() - lastRequestTs;
       if (since < MIN_GAP) await sleep(MIN_GAP - since);
       try {
@@ -360,13 +364,17 @@
       const v = streamVersion;
       liveTyped = partial;
       liveLine = '';
+      const token = ++liveToken;
+      liveQ = partial;
       renderOutput();
       enqueue({
         q: partial,
         from,
         to,
+        skipCheck: () => liveQ !== partial,
         onResult: (dst) => {
           if (v !== streamVersion) return;
+          if (token !== liveToken) return;
           const cur = segmentize(inputText.value);
           if (cur.partial === partial) {
             liveLine = dst;
@@ -383,6 +391,8 @@
     if (liveLine || liveTyped) {
       liveLine = '';
       liveTyped = '';
+      liveQ = null;
+      liveToken += 1;
       renderOutput();
     }
   }
@@ -391,6 +401,8 @@
     lines = [];
     liveLine = '';
     liveTyped = '';
+    liveQ = null;
+    liveToken += 1;
     doneCount = 0;
     streamVersion += 1;
   }
