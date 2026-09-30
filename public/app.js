@@ -206,103 +206,41 @@
     }
   }
 
-  // ---------- 直接请求百度翻译 API（JSONP，免后端） ----------
-  // 说明：免费静态托管下无法放置后端，密钥写在客户端；个人自用可接受。
+  // ---------- 调用百度大模型文本翻译 API ----------
+  // 架构：浏览器 -> 腾讯云函数(SSR函数URL, 持有 API Key) -> 百度大模型文本翻译 API
+  // 说明：该接口没有 CORS / JSONP 支持，纯前端无法直连，故必须经代理转发。
   const BAIDU_APPID = '20260922002689300';
-  const BAIDU_SECRET = 'tScH2BhYozHQC24scy9X';
-  const BAIDU_API = 'https://fanyi-api.baidu.com/api/trans/vip/translate';
+  // 腾讯云 函数URL 代理地址
+  const BAIDU_PROXY = 'https://1341375972-dfhh88uz2x.ap-guangzhou.tencentscf.com';
 
-  // MD5（纯 JS 实现，兼容 HTTP/HTTPS/IP 直连等任意访问方式）
-  function md5(input) {
-    function rl(n, c) {
-      return (n << c) | (n >>> (32 - c));
-    }
-    const addU32 = (a, b) => (a + b) >>> 0;
-    let i, j, old, K = [], S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-      5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
-      4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-      6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
-    for (j = 0; j < 64; j++) K[j] = Math.floor(Math.abs(Math.sin(j + 1)) * 0x100000000) >>> 0;
-    // 转 UTF-8 字节
-    const bytes = [];
-    const str = unescape(encodeURIComponent(input));
-    for (i = 0; i < str.length; i++) bytes.push(str.charCodeAt(i));
-    const bitLen = bytes.length * 8;
-    bytes.push(0x80);
-    while (bytes.length % 64 !== 56) bytes.push(0);
-    for (i = 0; i < 8; i++) bytes.push((Math.floor(bitLen / Math.pow(2, 8 * i))) & 0xff);
-    let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
-    const M = new Array(16);
-    for (let off = 0; off < bytes.length; off += 64) {
-      for (j = 0; j < 16; j++) {
-        M[j] = bytes[off + j * 4] | (bytes[off + j * 4 + 1] << 8) | (bytes[off + j * 4 + 2] << 16) | (bytes[off + j * 4 + 3] << 24);
-      }
-      let A = a0, B = b0, C = c0, D = d0;
-      for (i = 0; i < 64; i++) {
-        let F, g;
-        if (i < 16) { F = (B & C) | (~B & D); g = i; }
-        else if (i < 32) { F = (D & B) | (~D & C); g = (5 * i + 1) % 16; }
-        else if (i < 48) { F = B ^ C ^ D; g = (3 * i + 5) % 16; }
-        else { F = C ^ (B | ~D); g = (7 * i) % 16; }
-        F = addU32(addU32(F, A), addU32(K[i], M[g]));
-        old = D; D = C; C = B;
-        B = addU32(B, rl(F, S[i]));
-        A = old;
-      }
-      a0 = addU32(a0, A); b0 = addU32(b0, B); c0 = addU32(c0, C); d0 = addU32(d0, D);
-    }
-    // 标准 MD5 输出：每个 32 位寄存器按小端字节序打印
-    const hex = (n) => {
-      n = n >>> 0;
-      let s = '';
-      for (let i = 0; i < 4; i++) s += ('0' + ((n >> (i * 8)) & 0xff).toString(16)).slice(-2);
-      return s;
-    };
-    return hex(a0) + hex(b0) + hex(c0) + hex(d0);
-  }
-
-  // JSONP 请求
-  let cbSeq = 0;
-  function jsonp(url) {
-    return new Promise((resolve, reject) => {
-      const cb = '__yuyi_cb_' + ++cbSeq;
-      const s = document.createElement('script');
-      let done = false;
-      const timer = setTimeout(() => cleanup(new Error('百度翻译请求超时')), 15000);
-      function cleanup(err) {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        delete window[cb];
-        s.remove();
-        if (err) reject(err);
-      }
-      window[cb] = (data) => {
-        cleanup();
-        resolve(data);
-      };
-      s.onerror = () => cleanup(new Error('翻译服务连接失败'));
-      s.src = url + '&callback=' + cb;
-      document.head.appendChild(s);
-    });
-  }
-
-  // 对百度发一次翻译请求（响应为百度 trans/vi translate 格式）
+  // 对代理发一次大模型文本翻译请求
+  // 入参 q/from/to；返回结构兼容百度 trans_result 格式（trans_result[].dst）
   async function requestBaidu(q, from, to) {
-    const salt = String(Date.now());
-    const sign = md5(BAIDU_APPID + q + salt + BAIDU_SECRET);
-    const url =
-      BAIDU_API +
-      '?q=' + encodeURIComponent(q) +
-      '&from=' + encodeURIComponent(from) +
-      '&to=' + encodeURIComponent(to) +
-      '&appid=' + BAIDU_APPID +
-      '&salt=' + salt +
-      '&sign=' + sign;
-    const data = await jsonp(url);
-    if (data.error_code) {
-      const err = new Error(data.error_msg || '翻译失败');
-      err.code = data.error_code;
+    let res;
+    try {
+      res = await fetch(BAIDU_PROXY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appid: BAIDU_APPID,
+          q: q,
+          from: from,
+          to: to,
+          model_type: 'llm', // 'llm'-大模型翻译（默认）
+        }),
+      });
+    } catch (e) {
+      throw new Error('翻译服务连接失败，请确认代理已部署并正确配置地址');
+    }
+    let data;
+    try {
+      data = await res.json();
+    } catch (e) {
+      throw new Error('翻译服务返回异常（HTTP ' + res.status + '）');
+    }
+    if (data.error_code || !res.ok) {
+      const err = new Error(data.error_msg || '翻译失败（HTTP ' + res.status + '）');
+      err.code = data.error_code || String(res.status);
       throw err;
     }
     return data;

@@ -17,3 +17,10 @@ node_modules/
 # IDE / 工作目录
 .trae
 .trae-html-share-packages
+
+# 上传/截图等临时目录
+.uploads/
+
+# 已弃用的 Cloudflare Worker 代理（含默认凭据，勿提交）
+worker.js
+wrangler.toml
